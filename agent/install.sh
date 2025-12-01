@@ -2,7 +2,7 @@
 
 set -e
 
-# ====== AWX CONFIG ======
+# ===== AWX SETTINGS =====
 AWX_URL="http://192.168.1.11:30080"
 AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
 INVENTORY_ID=2
@@ -17,36 +17,24 @@ HOSTNAME=$(hostname)
 IP=$(hostname -I | awk '{print $1}')
 NAME="${HOSTNAME}-${IP}"
 
-# OS pretty name
-if [ -f /etc/os-release ]; then
-  OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"')
-else
-  OS=$(uname -s)
-fi
-
+OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"' || uname -s)
 KERNEL=$(uname -r)
 
-# Serial number
-SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null || true)
-if [ -z "$SERIAL" ] || [[ "$SERIAL" =~ "None"|"Unknown" ]]; then
+SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null)
+if [[ -z "$SERIAL" || "$SERIAL" == "None" || "$SERIAL" == "Unknown" ]]; then
   SERIAL=$(grep Serial /proc/cpuinfo | awk '{print $3}')
 fi
 [ -z "$SERIAL" ] && SERIAL="unknown"
 
-# CPU load
-CPU=$(awk '{print $1}' /proc/loadavg)
-
-# RAM format
 TOTAL_RAM=$(free -m | awk '/Mem:/ {print $2}')
 USED_RAM=$(free -m | awk '/Mem:/ {print $3}')
 RAM="${USED_RAM}MB/${TOTAL_RAM}MB"
 
-# Disk format
 DISK_USED=$(df -h / | awk 'NR==2 {print $3}')
 DISK_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
 DISK="${DISK_USED}/${DISK_TOTAL}"
+CPU=$(awk '{print $1}' /proc/loadavg)
 
-# YAML-style variable output
 VARS=$(cat <<EOF
 ip: "$IP"
 serial: "$SERIAL"
@@ -58,8 +46,8 @@ disk: "$DISK"
 EOF
 )
 
-# Escape YAML properly into JSON string
-variables_json=$(printf "%s" "$VARS" | jq -Rs .)
+# Convert to single-line AWX-compatible YAML string
+variables_string=$(printf "%s" "$VARS" | sed ':a;N;$!ba;s/\n/\\n/g')
 
 echo "Registering host '$NAME' to AWX inventory $INVENTORY_ID..."
 
@@ -67,7 +55,7 @@ curl -s -k \
   -H "Authorization: Bearer $AWX_TOKEN" \
   -H "Content-Type: application/json" \
   -X POST "$AWX_URL/api/v2/hosts/" \
-  -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
+  -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":\"$variables_string\"}" \
   || echo "NOTE: Host may already exist; ignoring error."
 
-echo "Done! Check AWX Inventory: DigiantClients → Host '$NAME'"
+echo "Done! Check AWX Inventory → DigiantClients → Host $NAME"
