@@ -6,17 +6,13 @@ AWX_URL="http://192.168.1.11:30080"
 AWX_TOKEN="VgC7mlJ09cSqPDIHGg8jIf6v4Y1oRC"
 INVENTORY_ID=2
 
-echo "Installing dependencies..."
-sudo apt update -y
-sudo apt install -y ansible git curl jq dmidecode -y
-
 echo "Collecting client details..."
 
 HOSTNAME=$(hostname)
 IP=$(hostname -I | awk '{print $1}')
 NAME="${HOSTNAME}-${IP}"
 
-OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"' || uname -s)
+OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"')
 KERNEL=$(uname -r)
 
 SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null)
@@ -34,8 +30,8 @@ USED_DISK=$(df -h / | awk 'NR==2 {print $3}')
 TOTAL_DISK=$(df -h / | awk 'NR==2 {print $2}')
 DISK="${USED_DISK}/${TOTAL_DISK}"
 
-# Build YAML variables (as plain string)
-VARIABLES="ip: $IP\nserial: $SERIAL\nos: $OS\nkernel: $KERNEL\ncpu: $CPU\nram: $RAM\ndisk: $DISK"
+# Final variables YAML converted to JSON safe string
+VARIABLES=$(printf "ip: %s\nserial: %s\nos: %s\nkernel: %s\ncpu: %s\nram: %s\ndisk: %s" "$IP" "$SERIAL" "$OS" "$KERNEL" "$CPU" "$RAM" "$DISK" | sed ':a;N;$!ba;s/\n/\\\\n/g')
 
 echo "Registering host '$NAME' to AWX inventory $INVENTORY_ID..."
 
