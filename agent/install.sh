@@ -1,22 +1,24 @@
 #!/bin/bash
 
-set -e
 
 
-
-AWX_URL="http://192.168.1.11:30080"
+# ====== CONFIG ======
 
 AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
 
-INVENTORY_ID=2
+AWX_URL="http://192.168.1.11:30080"
+
+INVENTORY_ID="2"
+
+REGION="default"
 
 
 
 echo "Installing dependencies..."
 
-sudo apt update -y
+sudo apt-get update -y
 
-sudo apt install -y git ansible curl jq
+sudo apt-get install -y ansible git curl jq
 
 
 
@@ -26,7 +28,7 @@ HOSTNAME=$(hostname)
 
 IP=$(hostname -I | awk '{print $1}')
 
-SERIAL=$(grep Serial /proc/cpuinfo | awk '{print $3}')
+SERIAL=$(cat /proc/cpuinfo | grep Serial | awk '{print $3}')
 
 
 
@@ -34,19 +36,31 @@ echo "Registering client $HOSTNAME to AWX..."
 
 
 
-curl -X POST "$AWX_URL/api/v2/hosts/" \
-
-  -H "Content-Type: application/json" \
+curl -s -X POST "$AWX_URL/api/v2/hosts/" \
 
   -H "Authorization: Bearer $AWX_TOKEN" \
 
-  -d "{\"name\":\"$HOSTNAME\",\"description\":\"IP:$IP Serial:$SERIAL\",\"inventory\":$INVENTORY_ID}"
+  -H "Content-Type: application/json" \
+
+  -d "{
+
+        \"name\": \"$HOSTNAME\",
+
+        \"description\": \"Auto registered client\",
+
+        \"inventory\": $INVENTORY_ID,
+
+        \"variables\": \"ip: $IP\nserial: $SERIAL\nregion: $REGION\"
+
+      }"
 
 
 
-echo "Running ansible-pull..."
+echo "Running registration playbook..."
 
+ansible-pull \
 
+  -U https://github.com/Pushparaj-Digi/Ansible-pull.git \
 
-ansible-pull -U https://github.com/Pushparaj-Digi/Ansible-pull.git playbooks/register_client.yml
+  playbooks/register_client.yml
 
