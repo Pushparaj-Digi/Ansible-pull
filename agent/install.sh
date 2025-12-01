@@ -23,7 +23,6 @@ sudo apt update -y
 sudo apt install -y ansible git curl jq dmidecode -y
 
 
-
 echo "Collecting client details..."
 
 
