@@ -2,15 +2,13 @@
 
 
 
-### CONFIG ###
+# ==== CONFIG ====
 
 AWX_URL="http://192.168.1.11:30080"
 
 AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
 
-INVENTORY_ID="2"
-
-REGION="default"
+INVENTORY_ID=2
 
 
 
@@ -28,25 +26,27 @@ HOSTNAME=$(hostname)
 
 IP=$(hostname -I | awk '{print $1}')
 
-SERIAL=$(grep Serial /proc/cpuinfo | awk '{print $3}')
+
+
+echo "Registering host '$HOSTNAME' in AWX inventory $INVENTORY_ID..."
 
 
 
-echo "Registering client $HOSTNAME to AWX..."
-
-
+# Minimal JSON: just name + inventory (avoid YAML/variables issues for now)
 
 curl -s -X POST "$AWX_URL/api/v2/hosts/" \
 
-    -H "Authorization: Bearer $AWX_TOKEN" \
+  -H "Authorization: Bearer $AWX_TOKEN" \
 
-    -H "Content-Type: application/json" \
+  -H "Content-Type: application/json" \
 
-    -d "{\"name\":\"$HOSTNAME\",\"inventory\":$INVENTORY_ID,\"description\":\"Auto added client\",\"variables\":\"ip: $IP\nserial: $SERIAL\nregion: $REGION\"}"
+  -d "{\"name\":\"$HOSTNAME\",\"inventory\":$INVENTORY_ID}" \
+
+  || echo "WARNING: AWX registration call failed (host might already exist)."
 
 
 
-echo "Running registration playbook with ansible-pull..."
+echo "Running local registration playbook via ansible-pull..."
 
 
 
@@ -56,5 +56,5 @@ ansible-pull \
 
   playbooks/register_client.yml \
 
-  --extra-vars "awx_token=$AWX_TOKEN awx_url=$AWX_URL inventory_id=$INVENTORY_ID hostname=$HOSTNAME"
+  -i localhost,
 

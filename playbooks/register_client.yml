@@ -1,6 +1,6 @@
 ---
 
-- name: Register client into AWX
+- name: Local registration marker
 
   hosts: localhost
 
@@ -10,47 +10,9 @@
 
   tasks:
 
-    - name: Collect device facts
+    - name: Show registration info
 
-      setup:
+      debug:
 
-
-
-    - name: Register host with AWX API
-
-      uri:
-
-        url: "http://192.168.1.11:30080/api/v2/hosts/"
-
-        method: POST
-
-        headers:
-
-          Authorization: "Bearer {{ awx_token }}"
-
-          Content-Type: "application/json"
-
-        body_format: json
-
-        body:
-
-          name: "{{ ansible_hostname }}"
-
-          inventory: 2
-
-          variables: |
-
-            ansible_host: "{{ ansible_default_ipv4.address }}"
-
-            serial: "{{ ansible_product_serial }}"
-
-        status_code: 201,400
-
-      register: output
-
-
-
-    - debug:
-
-        var: output
+        msg: "Client {{ ansible_fqdn | default(inventory_hostname) }} registered to AWX inventory."
 
