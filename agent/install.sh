@@ -1,42 +1,64 @@
 #!/bin/bash
 
+set -e
+
+# ====== AWX SETTINGS ======
 AWX_URL="http://192.168.1.11:30080"
-AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
+AWX_TOKEN="PASTE_YOUR_AWX_TOKEN_HERE"
 INVENTORY_ID=2
 
 echo "Installing dependencies..."
-sudo apt-get update -y
-sudo apt-get install -y ansible git curl jq
+sudo apt update -y
+sudo apt install -y ansible git curl jq dmidecode -y
 
 echo "Collecting client details..."
+
 HOSTNAME=$(hostname)
 IP=$(hostname -I | awk '{print $1}')
-SERIAL=$(grep -m1 Serial /proc/cpuinfo | awk '{print $3}')
-if [ -z "$SERIAL" ]; then
-  SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null)
+
+# OS pretty name
+if [ -f /etc/os-release ]; then
+  OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"')
+else
+  OS=$(uname -s)
 fi
-if [ -z "$SERIAL" ] || [[ "$SERIAL" == "Unknown" ]]; then
-  SERIAL=$(uuidgen)
-fi
-OS_VERSION=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
+
 KERNEL=$(uname -r)
-CPU_LOAD=$(uptime | awk '{print $(NF-2)}' | tr -d ',')
-RAM_USAGE=$(free | awk '/Mem/ {printf("%.0f%"), $3/$2 * 100}')
-DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
 
-UNIQUE_NAME="${HOSTNAME}-${IP}"
+# Serial number (requires dmidecode + sudo)
+SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null)
+if [ -z "$SERIAL" ] || [ "$SERIAL" == "None" ] || [ "$SERIAL" == "Unknown" ]; then
+  SERIAL=$(cat /proc/cpuinfo | grep Serial | awk '{print $3}')
+fi
 
-echo "Registering host '$UNIQUE_NAME' in AWX inventory $INVENTORY_ID..."
+# CPU load (1-minute load avg)
+CPU=$(awk '{print $1}' /proc/loadavg)
 
-curl -s -X POST "$AWX_URL/api/v2/hosts/" \
--H "Authorization: Bearer $AWX_TOKEN" \
--H "Content-Type: application/json" \
--d "{
-  \"name\": \"$UNIQUE_NAME\",
-  \"inventory\": $INVENTORY_ID,
-  \"variables\": \"ip: $IP\nserial: $SERIAL\nos: $OS_VERSION\nkernel: $KERNEL\ncpu: $CPU_LOAD\nram: $RAM_USAGE\ndisk: $DISK_USAGE\"
-}" || echo "Host may already exist."
+# RAM usage in %
+RAM=$(free -m | awk '/Mem:/ {printf "%.0f", $3/$2*100}')
 
-echo "Running local registration playbook..."
+# Root disk usage in %
+DISK=$(df -h / | awk 'NR==2 {gsub("%","",$5); print $5}')
 
-ansible-pull -U "https://github.com/Pushparaj-Digi/Ansible-pull.git" playbooks/register_client.yml -i localhost,
+# Build YAML variables string
+VARS=$(cat <<EOF
+ip: $IP
+serial: $SERIAL
+os: $OS
+kernel: $KERNEL
+cpu: $CPU
+ram: $RAM
+disk: $DISK
+EOF
+)
+
+# Convert YAML string to JSON string for AWX
+variables_json=$(printf '%s\n' "$VARS" | jq -Rs .)
+
+echo "Registering host '$HOSTNAME' in AWX inventory $INVENTORY_ID..."
+curl -s -k -H "Authorization: Token $AWX_TOKEN" -H "Content-Type: application/json" \
+  -X POST "$AWX_URL/api/v2/hosts/" \
+  -d "{\"name\":\"$HOSTNAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
+  || echo "NOTE: Host may already exist; ignoring error."
+
+echo "Done. Check AWX → Inventory → DigiantClients → Host '$HOSTNAME'."
