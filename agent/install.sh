@@ -56,10 +56,12 @@ JSON=$(jq -n \
 )
 
 echo "Registering host '$HOSTNAME' to AWX inventory $INVENTORY_ID..."
-curl -s -k -H "Content-Type: application/json" \
-     -H "Authorization: Token '$AWX_TOKEN'" \
-     -X POST "$AWX_URL/api/v2/hosts/" \
-     -d "$JSON" || echo "NOTE: Host may already exist."
+curl -s -k \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Token $AWX_TOKEN" \
+  -X POST "$AWX_URL/api/v2/hosts/" \
+  -d "$JSON" \
+  || echo "NOTE: Host may already exist."
 
 echo "Registration complete."
 echo "Check AWX → Inventory → DigiantClients → Host '$HOSTNAME'"
