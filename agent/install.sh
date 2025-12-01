@@ -18,6 +18,7 @@ NAME="${HOSTNAME}-${IP}"
 
 OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"' || uname -s)
 KERNEL=$(uname -r)
+
 SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null | head -n1)
 if [ -z "$SERIAL" ] || [[ "$SERIAL" == "None" || "$SERIAL" == "Unknown" ]]; then
   SERIAL=$(grep Serial /proc/cpuinfo | awk '{print $3}')
@@ -33,27 +34,28 @@ DISK_USED=$(df -h / | awk 'NR==2 {print $3}')
 DISK_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
 DISK="${DISK_USED}/${DISK_TOTAL}"
 
-# ---------------- CREATE YAML MULTILINE STRING ----------------
+# YAML block to send
 VARS=$(cat <<EOF
-ip: ${IP}
-serial: ${SERIAL}
-os: ${OS}
-kernel: ${KERNEL}
-cpu: ${CPU}
-ram: ${RAM}
-disk: ${DISK}
+ip: $IP
+serial: $SERIAL
+os: $OS
+kernel: $KERNEL
+cpu: $CPU
+ram: $RAM
+disk: $DISK
 EOF
 )
 
-# Escape newlines and quotes to make it JSON safe
-ESCAPED_VARS=$(printf "%s" "$VARS" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
+# Convert to JSON-safe string
+ESCAPED_VARS=$(printf "%s" "$VARS" | jq -Rs .)
 
 echo "Registering host '$NAME' to AWX inventory $INVENTORY_ID..."
 
-curl -k -s -H "Authorization: Bearer $AWX_TOKEN" \
-     -H "Content-Type: application/json" \
-     -X POST "$AWX_URL/api/v2/hosts/" \
-     -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":\"$ESCAPED_VARS\"}" \
-     || echo "NOTE: Host may already exist"
+curl -k -s \
+  -H "Authorization: Bearer $AWX_TOKEN" \
+  -H "Content-Type: application/json" \
+  -X POST "$AWX_URL/api/v2/hosts/" \
+  -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$ESCAPED_VARS}" \
+  || echo "NOTE: Host may already exist."
 
 echo "Done! Check AWX Inventory → DigiantClients → Host '$NAME'"
