@@ -25,7 +25,7 @@ fi
 
 KERNEL=$(uname -r)
 
-# Serial number
+# Serial number detection
 SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null)
 if [ -z "$SERIAL" ] || [ "$SERIAL" == "None" ] || [ "$SERIAL" == "Unknown" ]; then
   SERIAL=$(cat /proc/cpuinfo | grep Serial | awk '{print $3}')
@@ -34,19 +34,19 @@ fi
 # CPU load
 CPU=$(awk '{print $1}' /proc/loadavg)
 
-# RAM
+# RAM usage
 TOTAL_RAM=$(free -m | awk '/Mem:/ {print $2}')
 USED_RAM=$(free -m | awk '/Mem:/ {print $3}')
 RAM_PERCENT=$(awk "BEGIN {printf \"%.0f\", ($USED_RAM/$TOTAL_RAM)*100}")
 RAM="${USED_RAM}MB/${TOTAL_RAM}MB (${RAM_PERCENT}%)"
 
-# Disk
-TOTAL_DISK=$(df -h / | awk 'NR==2 {print $2}')
+# Disk usage
+DISK_PERCENT=$(df -h / | awk 'NR==2 {gsub("%", "", $5); print $5}')
 USED_DISK=$(df -h / | awk 'NR==2 {print $3}')
-DISK_PERCENT=$(df -h / | awk 'NR==2 {gsub(\"%\", \"\", $5); print $5}')
+TOTAL_DISK=$(df -h / | awk 'NR==2 {print $2}')
 DISK="${USED_DISK}/${TOTAL_DISK} (${DISK_PERCENT}%)"
 
-# Build YAML variables string
+# Build variable block
 VARS=$(cat <<EOF
 ip: $IP
 serial: $SERIAL
@@ -64,7 +64,4 @@ echo "Registering host '$NEW_NAME' to AWX inventory $INVENTORY_ID..."
 
 curl -s -k -H "Authorization: Token $AWX_TOKEN" -H "Content-Type: application/json" \
   -X POST "$AWX_URL/api/v2/hosts/" \
-  -d "{\"name\":\"$NEW_NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
-  || echo "NOTE: Host may already exist; ignoring error."
-
-echo "Done. Check AWX → Inventory → DigiantClients → Host '$NEW_NAME'"
+  -d "{\"name\":\"$NEW_NAME\",\"inventory\":$INVENTORY_ID,\"enabled
