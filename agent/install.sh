@@ -26,37 +26,40 @@ fi
 
 KERNEL=$(uname -r)
 
-# Serial number detection (physical + VM compatible)
+# Serial number
 SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null || true)
 if [ -z "$SERIAL" ] || [[ "$SERIAL" =~ "None"|"Unknown" ]]; then
   SERIAL=$(grep Serial /proc/cpuinfo | awk '{print $3}')
 fi
 [ -z "$SERIAL" ] && SERIAL="unknown"
 
-# CPU Load
+# CPU load
 CPU=$(awk '{print $1}' /proc/loadavg)
 
-# RAM used / total format
+# RAM format
 TOTAL_RAM=$(free -m | awk '/Mem:/ {print $2}')
 USED_RAM=$(free -m | awk '/Mem:/ {print $3}')
 RAM="${USED_RAM}MB/${TOTAL_RAM}MB"
 
-# Disk used / total format
+# Disk format
 DISK_USED=$(df -h / | awk 'NR==2 {print $3}')
 DISK_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
 DISK="${DISK_USED}/${DISK_TOTAL}"
 
-# Prepare YAML variable string
+# YAML-style variable output
 VARS=$(cat <<EOF
-ip: $IP
-serial: $SERIAL
-os: $OS
-kernel: $KERNEL
-cpu: $CPU
-ram: $RAM
-disk: $DISK
+ip: "$IP"
+serial: "$SERIAL"
+os: "$OS"
+kernel: "$KERNEL"
+cpu: "$CPU"
+ram: "$RAM"
+disk: "$DISK"
 EOF
 )
+
+# Escape YAML properly into JSON string
+variables_json=$(printf "%s" "$VARS" | jq -Rs .)
 
 echo "Registering host '$NAME' to AWX inventory $INVENTORY_ID..."
 
@@ -64,7 +67,7 @@ curl -s -k \
   -H "Authorization: Bearer $AWX_TOKEN" \
   -H "Content-Type: application/json" \
   -X POST "$AWX_URL/api/v2/hosts/" \
-  -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":\"$VARS\"}" \
+  -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
   || echo "NOTE: Host may already exist; ignoring error."
 
-echo "Done. Check AWX Inventory: DigiantClients → '$NAME'"
+echo "Done! Check AWX Inventory: DigiantClients → Host '$NAME'"
