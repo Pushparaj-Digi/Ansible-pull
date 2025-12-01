@@ -56,7 +56,8 @@ variables_json=$(jq -n \
 
 echo "Registering host '$NAME' to AWX inventory $INVENTORY_ID..."
 
-curl -s -k -H "Authorization: Token $AWX_TOKEN" -H "Content-Type: application/json" \
+curl -s -k -H "Authorization: Bearer $AWX_TOKEN" \
+ -H "Content-Type: application/json" \
   -X POST "$AWX_URL/api/v2/hosts/" \
   -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
   || echo "Host may already exist"
