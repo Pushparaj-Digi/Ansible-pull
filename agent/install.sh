@@ -1,8 +1,6 @@
 #!/bin/bash
-
 set -e
 
-# ===== AWX SETTINGS =====
 AWX_URL="http://192.168.1.11:30080"
 AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
 INVENTORY_ID=2
@@ -46,8 +44,8 @@ disk: "$DISK"
 EOF
 )
 
-# Convert to single-line AWX-compatible YAML string
-variables_string=$(printf "%s" "$VARS" | sed ':a;N;$!ba;s/\n/\\n/g')
+# Escape double-quotes and newlines for AWX JSON payload
+variables_string=$(printf "%s" "$VARS" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
 
 echo "Registering host '$NAME' to AWX inventory $INVENTORY_ID..."
 
