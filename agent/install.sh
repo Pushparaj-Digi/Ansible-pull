@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 
 
 AWX_URL="http://192.168.1.11:30080"
@@ -24,7 +26,7 @@ HOSTNAME=$(hostname)
 
 IP=$(hostname -I | awk '{print $1}')
 
-SERIAL=$(cat /proc/cpuinfo | grep Serial | awk '{print $3}')
+SERIAL=$(grep Serial /proc/cpuinfo | awk '{print $3}')
 
 
 
@@ -43,6 +45,8 @@ curl -X POST "$AWX_URL/api/v2/hosts/" \
 
 
 echo "Running ansible-pull..."
+
+
 
 ansible-pull -U https://github.com/Pushparaj-Digi/Ansible-pull.git playbooks/register_client.yml
 
