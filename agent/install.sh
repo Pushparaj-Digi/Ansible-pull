@@ -1,64 +1,43 @@
 #!/bin/bash
 
-set -e
-
-# ====== AWX SETTINGS ======
+# ===== CONFIG =====
 AWX_URL="http://192.168.1.11:30080"
-AWX_TOKEN="PASTE_YOUR_AWX_TOKEN_HERE"
-INVENTORY_ID=2
+AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
+INVENTORY_ID="2"
 
+# ===== INSTALL DEPENDENCIES =====
 echo "Installing dependencies..."
 sudo apt update -y
-sudo apt install -y ansible git curl jq dmidecode -y
+sudo apt install -y ansible git curl jq dmidecode
 
-echo "Collecting client details..."
-
+# ===== COLLECT DEVICE INFO =====
 HOSTNAME=$(hostname)
 IP=$(hostname -I | awk '{print $1}')
-
-# OS pretty name
-if [ -f /etc/os-release ]; then
-  OS=$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '"')
-else
-  OS=$(uname -s)
-fi
-
+OS=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
 KERNEL=$(uname -r)
+CPU=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
+RAM=$(free -m | awk 'NR==2{printf "%s", $3/1024}')
+DISK=$(df -h / | awk 'NR==2{print $5}')
 
-# Serial number (requires dmidecode + sudo)
+# SERIAL fallback (VM → Physical RPi)
 SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null)
-if [ -z "$SERIAL" ] || [ "$SERIAL" == "None" ] || [ "$SERIAL" == "Unknown" ]; then
+if [[ -z "$SERIAL" || "$SERIAL" == "None" || "$SERIAL" == "Unknown" ]]; then
   SERIAL=$(cat /proc/cpuinfo | grep Serial | awk '{print $3}')
 fi
 
-# CPU load (1-minute load avg)
-CPU=$(awk '{print $1}' /proc/loadavg)
-
-# RAM usage in %
-RAM=$(free -m | awk '/Mem:/ {printf "%.0f", $3/$2*100}')
-
-# Root disk usage in %
-DISK=$(df -h / | awk 'NR==2 {gsub("%","",$5); print $5}')
-
-# Build YAML variables string
-VARS=$(cat <<EOF
-ip: $IP
-serial: $SERIAL
-os: $OS
-kernel: $KERNEL
-cpu: $CPU
-ram: $RAM
-disk: $DISK
-EOF
-)
-
-# Convert YAML string to JSON string for AWX
-variables_json=$(printf '%s\n' "$VARS" | jq -Rs .)
-
 echo "Registering host '$HOSTNAME' in AWX inventory $INVENTORY_ID..."
-curl -s -k -H "Authorization: Token $AWX_TOKEN" -H "Content-Type: application/json" \
-  -X POST "$AWX_URL/api/v2/hosts/" \
-  -d "{\"name\":\"$HOSTNAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
-  || echo "NOTE: Host may already exist; ignoring error."
 
-echo "Done. Check AWX → Inventory → DigiantClients → Host '$HOSTNAME'."
+# ===== REGISTER HOST IN AWX =====
+curl -k -s -X POST "$AWX_URL/api/v2/hosts/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $AWX_TOKEN" \
+  -d "{
+        \"name\": \"$HOSTNAME\",
+        \"inventory\": \"$INVENTORY_ID\",
+        \"enabled\": true,
+        \"variables\": \"ip: $IP\nserial: $SERIAL\nos: $OS\nkernel: $KERNEL\ncpu: $CPU\nram: $RAM\ndisk: $DISK\"
+      }" \
+  && echo "Successfully registered" \
+  || echo "WARNING: Could not register (maybe already exists)."
+
+echo "Done. Check AWX → Inventory → DigiantClients."
