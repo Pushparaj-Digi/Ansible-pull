@@ -30,15 +30,17 @@ USED_DISK=$(df -h / | awk 'NR==2 {print $3}')
 TOTAL_DISK=$(df -h / | awk 'NR==2 {print $2}')
 DISK="${USED_DISK}/${TOTAL_DISK}"
 
-# Final variables YAML converted to JSON safe string
-VARIABLES=$(printf "ip: %s\nserial: %s\nos: %s\nkernel: %s\ncpu: %s\nram: %s\ndisk: %s" "$IP" "$SERIAL" "$OS" "$KERNEL" "$CPU" "$RAM" "$DISK" | sed ':a;N;$!ba;s/\n/\\\\n/g')
+# Build YAML-style string with quotes
+VARIABLES=$(printf "ip: \"%s\"\nserial: \"%s\"\nos: \"%s\"\nkernel: \"%s\"\ncpu: \"%s\"\nram: \"%s\"\ndisk: \"%s\"" \
+  "$IP" "$SERIAL" "$OS" "$KERNEL" "$CPU" "$RAM" "$DISK" | sed ':a;N;$!ba;s/\n/\\n/g')
 
 echo "Registering host '$NAME' to AWX inventory $INVENTORY_ID..."
 
-curl -k -s -H "Authorization: Bearer $AWX_TOKEN" \
-     -H "Content-Type: application/json" \
-     -X POST "$AWX_URL/api/v2/hosts/" \
-     -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":\"$VARIABLES\"}" \
-     || echo "NOTE: Host may already exist; ignoring error."
+curl -k -s \
+  -H "Authorization: Bearer $AWX_TOKEN" \
+  -H "Content-Type: application/json" \
+  -X POST "$AWX_URL/api/v2/hosts/" \
+  -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":\"$VARIABLES\"}" \
+  || echo "NOTE: Host may already exist; ignoring error."
 
 echo "Done! Check AWX Inventory → DigiantClients → Host '$NAME'"
