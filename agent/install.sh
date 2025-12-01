@@ -25,32 +25,35 @@ fi
 
 CPU=$(awk '{print $1}' /proc/loadavg)
 
-# RAM used/total
 RAM_USED=$(free -m | awk '/Mem:/ {print $3}')
 RAM_TOTAL=$(free -m | awk '/Mem:/ {print $2}')
 RAM="${RAM_USED}MB/${RAM_TOTAL}MB"
 
-# Disk used/total for root
 DISK_USED=$(df -h / | awk 'NR==2 {print $3}')
 DISK_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
 DISK="${DISK_USED}/${DISK_TOTAL}"
 
-# YAML text for AWX variables field
-VARS="ip: ${IP}
+# ---------------- CREATE YAML MULTILINE STRING ----------------
+VARS=$(cat <<EOF
+ip: ${IP}
 serial: ${SERIAL}
 os: ${OS}
 kernel: ${KERNEL}
 cpu: ${CPU}
 ram: ${RAM}
 disk: ${DISK}
-"
+EOF
+)
+
+# Escape newlines and quotes to make it JSON safe
+ESCAPED_VARS=$(printf "%s" "$VARS" | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/"/\\"/g')
 
 echo "Registering host '$NAME' to AWX inventory $INVENTORY_ID..."
 
 curl -k -s -H "Authorization: Bearer $AWX_TOKEN" \
      -H "Content-Type: application/json" \
      -X POST "$AWX_URL/api/v2/hosts/" \
-     --data "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":\"$VARS\"}" \
-     || echo "NOTE: Host may already exist."
+     -d "{\"name\":\"$NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":\"$ESCAPED_VARS\"}" \
+     || echo "NOTE: Host may already exist"
 
 echo "Done! Check AWX Inventory → DigiantClients → Host '$NAME'"
