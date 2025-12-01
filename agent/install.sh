@@ -1,5 +1,7 @@
 #!/bin/bash
 
+
+
 set -e
 
 
@@ -8,7 +10,7 @@ set -e
 
 AWX_URL="http://192.168.1.11:30080"
 
-AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
+AWX_TOKEN="PASTE_YOUR_AWX_TOKEN_HERE"
 
 INVENTORY_ID=2
 
@@ -30,11 +32,9 @@ HOSTNAME=$(hostname)
 
 IP=$(hostname -I | awk '{print $1}')
 
-NEW_NAME="${HOSTNAME}-${IP}"
+HOSTNAME_FULL="${HOSTNAME}-${IP}"
 
 
-
-# OS pretty name
 
 if [ -f /etc/os-release ]; then
 
@@ -52,95 +52,61 @@ KERNEL=$(uname -r)
 
 
 
-# Serial number
+SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null | tr -d '"')
 
-SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null || true)
+if [ -z "$SERIAL" ] || [ "$SERIAL" == "None" ] || [ "$SERIAL" == "Unknown" ]; then
 
-if [ -z "$SERIAL" ] || [ "$SERIAL" = "None" ] || [ "$SERIAL" = "Unknown" ]; then
-
-  SERIAL=$(grep -m1 'Serial' /proc/cpuinfo 2>/dev/null | awk '{print $3}')
-
-  [ -z "$SERIAL" ] && SERIAL="unknown"
+  SERIAL=$(awk -F ': ' '/Serial/ {print $2}' /proc/cpuinfo 2>/dev/null)
 
 fi
 
 
-
-# CPU load (1 min avg)
 
 CPU=$(awk '{print $1}' /proc/loadavg)
 
 
 
-# RAM: used/total in GB with percent
+USED_RAM=$(free -m | awk '/Mem:/ {print $3}')
 
-TOTAL_RAM_MB=$(free -m | awk '/Mem:/ {print $2}')
+TOTAL_RAM=$(free -m | awk '/Mem:/ {print $2}')
 
-USED_RAM_MB=$(free -m | awk '/Mem:/ {print $3}')
-
-
-
-if [ -n "$TOTAL_RAM_MB" ] && [ "$TOTAL_RAM_MB" -gt 0 ]; then
-
-  RAM_PERCENT=$(awk "BEGIN {printf \"%.0f\", ($USED_RAM_MB/$TOTAL_RAM_MB)*100}")
-
-  USED_RAM_GB=$(awk "BEGIN {printf \"%.1f\", $USED_RAM_MB/1024}")
-
-  TOTAL_RAM_GB=$(awk "BEGIN {printf \"%.1f\", $TOTAL_RAM_MB/1024}")
-
-  RAM="${USED_RAM_GB}GB/${TOTAL_RAM_GB}GB (${RAM_PERCENT}%)"
-
-else
-
-  RAM="unknown"
-
-fi
+RAM="${USED_RAM}MB/${TOTAL_RAM}MB"
 
 
 
-# Disk: used/total with percent
+USED_DISK=$(df -h / | awk 'NR==2 {print $3}')
 
-DISK_LINE=$(df -h / | awk 'NR==2')
+TOTAL_DISK=$(df -h / | awk 'NR==2 {print $2}')
 
-USED_DISK=$(echo "$DISK_LINE" | awk '{print $3}')
-
-TOTAL_DISK=$(echo "$DISK_LINE" | awk '{print $2}')
-
-DISK_PERCENT=$(echo "$DISK_LINE" | awk '{gsub("%","",$5); print $5}')
-
-DISK="${USED_DISK}/${TOTAL_DISK} (${DISK_PERCENT}%)"
+DISK="${USED_DISK}/${TOTAL_DISK}"
 
 
 
-# Build YAML variables string
+# Create safe JSON
 
-VARS=$(cat <<EOF
+variables_json=$(jq -n \
 
-ip: $IP
+  --arg ip "$IP" \
 
-serial: $SERIAL
+  --arg serial "$SERIAL" \
 
-os: $OS
+  --arg os "$OS" \
 
-kernel: $KERNEL
+  --arg kernel "$KERNEL" \
 
-cpu: $CPU
+  --arg cpu "$CPU" \
 
-ram: $RAM
+  --arg ram "$RAM" \
 
-disk: $DISK
+  --arg disk "$DISK" \
 
-EOF
+  '{ip: $ip, serial: $serial, os: $os, kernel: $kernel, cpu: $cpu, ram: $ram, disk: $disk}'
 
 )
 
 
 
-variables_json=$(printf '%s\n' "$VARS" | jq -Rs .)
-
-
-
-echo "Registering host '$NEW_NAME' in AWX inventory $INVENTORY_ID..."
+echo "Registering host '$HOSTNAME_FULL' to AWX inventory $INVENTORY_ID..."
 
 curl -s -k \
 
@@ -150,11 +116,11 @@ curl -s -k \
 
   -X POST "$AWX_URL/api/v2/hosts/" \
 
-  -d "{\"name\":\"$NEW_NAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
+  -d "{\"name\":\"$HOSTNAME_FULL\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
 
   || echo "NOTE: Host may already exist; ignoring error."
 
 
 
-echo "Done. Check AWX → Inventory → DigiantClients → Host '$NEW_NAME'."
+echo "Done. Check AWX inventory for '$HOSTNAME_FULL'"
 
