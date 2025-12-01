@@ -11,7 +11,13 @@ sudo apt-get install -y ansible git curl jq
 echo "Collecting client details..."
 HOSTNAME=$(hostname)
 IP=$(hostname -I | awk '{print $1}')
-SERIAL=$(cat /proc/cpuinfo | grep Serial | awk '{print $3}')
+SERIAL=$(grep -m1 Serial /proc/cpuinfo | awk '{print $3}')
+if [ -z "$SERIAL" ]; then
+  SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null)
+fi
+if [ -z "$SERIAL" ] || [[ "$SERIAL" == "Unknown" ]]; then
+  SERIAL=$(uuidgen)
+fi
 OS_VERSION=$(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')
 KERNEL=$(uname -r)
 CPU_LOAD=$(uptime | awk '{print $(NF-2)}' | tr -d ',')
