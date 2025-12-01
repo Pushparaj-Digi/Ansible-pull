@@ -3,7 +3,7 @@ set -e
 
 # ====== AWX SETTINGS ======
 AWX_URL="http://192.168.1.11:30080"
-AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
+AWX_TOKEN="VgC7mlJ09cSqPDIHGg8jIf6v4Y1oRC"
 INVENTORY_ID=2
 
 echo "Installing dependencies..."
