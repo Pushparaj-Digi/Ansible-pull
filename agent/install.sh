@@ -2,13 +2,23 @@
 
 
 
-AWX_URL="http://192.168.1.11:30080/api/v2/hosts/"
+AWX_URL="http://192.168.1.11:30080"
 
-AWX_TOKEN="lXnGYSOrOYNqrKQTZ3P2rZRDQdVRbs"
+AWX_TOKEN="tYijIihFBmNPMPxHYrM1jQWNDXkL9L"
 
-INVENTORY_ID="2"
+INVENTORY_ID=2
 
 
+
+echo "Installing dependencies..."
+
+sudo apt update -y
+
+sudo apt install -y git ansible curl jq
+
+
+
+echo "Collecting client details..."
 
 HOSTNAME=$(hostname)
 
@@ -22,29 +32,17 @@ echo "Registering client $HOSTNAME to AWX..."
 
 
 
-curl -k -s -X POST "$AWX_URL" \
+curl -X POST "$AWX_URL/api/v2/hosts/" \
 
   -H "Content-Type: application/json" \
 
   -H "Authorization: Bearer $AWX_TOKEN" \
 
-  -d "{
-
-      \"name\": \"$HOSTNAME\",
-
-      \"description\": \"IP:$IP Serial:$SERIAL\",
-
-      \"inventory\": \"$INVENTORY_ID\"
-
-  }"
+  -d "{\"name\":\"$HOSTNAME\",\"description\":\"IP:$IP Serial:$SERIAL\",\"inventory\":$INVENTORY_ID}"
 
 
 
-echo "Running registration playbook..."
+echo "Running ansible-pull..."
 
-ansible-pull \
-
-  -U https://github.com/Pushparaj-Digi/Ansible-pull.git \
-
-  playbooks/register_client.yml
+ansible-pull -U https://github.com/Pushparaj-Digi/Ansible-pull.git playbooks/register_client.yml
 
