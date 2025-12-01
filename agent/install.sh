@@ -59,7 +59,7 @@ EOF
 variables_json=$(printf '%s\n' "$VARS" | jq -Rs .)
 
 echo "Registering host '$HOSTNAME' in AWX inventory $INVENTORY_ID..."
-curl -s -k -H "Authorization: Token $AWX_TOKEN" -H "Content-Type: application/json" \
+curl -s -k -H "Authorization: Bearer $AWX_TOKEN" -H "Content-Type: application/json" \
   -X POST "$AWX_URL/api/v2/hosts/" \
   -d "{\"name\":\"$HOSTNAME\",\"inventory\":$INVENTORY_ID,\"enabled\":true,\"variables\":$variables_json}" \
   || echo "NOTE: Host may already exist; ignoring error."
